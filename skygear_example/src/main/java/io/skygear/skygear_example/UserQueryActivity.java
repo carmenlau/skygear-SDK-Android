@@ -26,8 +26,13 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import org.json.JSONException;
+
 import io.skygear.skygear.Container;
 import io.skygear.skygear.Error;
+import io.skygear.skygear.Query;
+import io.skygear.skygear.Record;
+import io.skygear.skygear.RecordQueryResponseHandler;
 
 public class UserQueryActivity extends AppCompatActivity {
 
@@ -47,8 +52,25 @@ public class UserQueryActivity extends AppCompatActivity {
         this.skygear = Container.defaultContainer(this);
     }
 
-    private void display(String displayString) {
-        this.display.setText(displayString);
+    private void display(Record[] records) {
+        String displayText;
+        if (records == null || records.length == 0) {
+            displayText = "No records found";
+        } else {
+            StringBuffer buffer = new StringBuffer();
+            buffer.append(String.format("Got %d records\n\n", records.length));
+            try {
+                for (int idx = 0; idx < records.length; idx++) {
+                    buffer.append(String.format("Record[%d]:\n", idx))
+                            .append(records[idx].toJson().toString(2))
+                            .append("\n\n");
+                }
+                displayText = buffer.toString();
+            } catch (JSONException e) {
+                displayText = "Invalid JSON format for user records";
+            }
+        }
+        this.display.setText(displayText);
     }
 
     @SuppressLint("DefaultLocale")
@@ -63,16 +85,29 @@ public class UserQueryActivity extends AppCompatActivity {
         loading.setMessage("Querying user...");
         loading.show();
 
-        final AlertDialog successDialog = new AlertDialog.Builder(this)
-                .setTitle("Query success")
-                .setMessage("")
-                .setPositiveButton("Dismiss", null)
-                .create();
-
         final AlertDialog failDialog = new AlertDialog.Builder(this)
                 .setTitle("Query failed")
                 .setMessage("")
                 .setNeutralButton("Dismiss", null)
                 .create();
+
+
+        Query query = new Query("user");
+        query.equalTo("email", email);
+        skygear.getPublicDatabase().query(query, new RecordQueryResponseHandler() {
+
+            @Override
+            public void onQuerySuccess(Record[] records) {
+                loading.dismiss();
+                display(records);
+            }
+
+            @Override
+            public void onQueryError(Error error) {
+                failDialog.setMessage(
+                        String.format("Fail with reason:\n%s", error.getDetailMessage())
+                );
+            }
+        });
     }
 }
